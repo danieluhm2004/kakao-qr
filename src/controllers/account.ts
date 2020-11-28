@@ -1,13 +1,15 @@
 import got, { Got } from 'got';
 
+import APIError from '../tools/error';
 import { CookieJar } from 'tough-cookie';
 import { FileCookieStore } from 'tough-cookie-file-store';
 import cheerio from 'cheerio';
 import cryptojs from 'crypto-js';
+import logger from '../tools/logger';
 import { mkdirSync } from 'fs';
 
 export default class Account {
-  private email: string;
+  public email: string;
   private password: string;
   private cachingKey?: string;
   private cookieJar: CookieJar;
@@ -23,6 +25,9 @@ export default class Account {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const fileStore: any = new FileCookieStore(path);
       this.cookieJar = new CookieJar(fileStore);
+      logger.info(
+        `With caching enabled, information about ${this.email} was saved as ${path}.`
+      );
     }
 
     this.got = got.extend({
@@ -58,6 +63,7 @@ export default class Account {
       action: { type: 'Pageview', name: 'pageLogin', kind: '' },
     });
 
+    logger.info(`Attempting to log in as ${this.email}.`);
     const res = await this.got({
       method: 'POST',
       url: 'https://accounts.kakao.com/weblogin/authenticate.json',
@@ -79,8 +85,12 @@ export default class Account {
     }).json<{ status: number }>();
 
     if (res.status !== 0) {
-      throw new Error('Cannot login kakao account');
+      const message = `There was a problem logging in to ${this.email} (${res.status}).`;
+      logger.warn(message);
+      throw new APIError(message);
     }
+
+    logger.info(`Successfully logged in to ${this.email}`);
   }
 
   public async isLogined(): Promise<boolean> {
@@ -101,6 +111,8 @@ export default class Account {
       headers: { Referer: params.common.referrer },
       searchParams: { d: JSON.stringify(params) },
     });
+
+    logger.info(`Tracking information was sent to ${this.email}.`);
   }
 
   private async getCSRFAndKeyForLogin() {
@@ -121,9 +133,12 @@ export default class Account {
     const key = $('input[name="p"]').attr('value');
 
     if (!csrf || !key) {
-      throw new Error('Cannot find CSRF And Key');
+      const message = `During the login process to ${this.email} failed to get CSRF and key.`;
+      logger.warn(message);
+      throw new APIError(message);
     }
 
+    logger.info(`It comes with a CSRF key to log in ${this.email}.`);
     return { csrf, key };
   }
 
@@ -146,6 +161,6 @@ export default class Account {
   }
 
   public static hasCaching(): boolean {
-    return process.env.ACCOUNT_CACHING === 'true';
+    return process.env.CACHING === 'true';
   }
 }

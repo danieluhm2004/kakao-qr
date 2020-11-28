@@ -1,4 +1,6 @@
+import APIError from '../tools/error';
 import Account from './account';
+import logger from '../tools/logger';
 
 export default class Checkin {
   private account: Account;
@@ -18,7 +20,9 @@ export default class Checkin {
 
     const token = res.body.match(/\"token\":"(.*?)\"/);
     if (!token || token.length <= 0) {
-      throw new Error('First phone number verification is required');
+      const message = `The ${this.account.email} account has never been verified. Please proceed after authentication.`;
+      logger.warn(message);
+      throw new APIError(message);
     }
 
     this.token = token[1];
@@ -26,6 +30,10 @@ export default class Checkin {
   }
 
   public async getQR(): Promise<string> {
+    if (!this.token) {
+      await this.getToken();
+    }
+
     const res = await this.account
       .got({
         url: 'https://accounts.kakao.com/qr_check_in/request_qr_data.json',
@@ -40,9 +48,12 @@ export default class Checkin {
       .json<{ status: number; qr_data: string }>();
 
     if (res.status !== 0) {
-      throw new Error('Cannot get QR Image');
+      const message = `Can not take all the information about the QR from ${this.account.email}.`;
+      logger.warn(message);
+      throw new APIError(message);
     }
 
+    logger.info(`QR information for ${this.account.email} was returned.`);
     return res.qr_data;
   }
 }
