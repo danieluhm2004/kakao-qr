@@ -1,0 +1,11 @@
+version: '3.0'
+services:
+  kakao-qr:
+    image: danieluhm2004/kakao-qr:latest
+    ports:
+      - '3000:3000'
+    restart: always
+    environment:
+      PORT: 3000
+      CACHING: 'true'
+      SECRET_KEY: this_is_secret_key
